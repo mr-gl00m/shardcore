@@ -1,0 +1,2 @@
+[console_scripts]
+shardcore = shardcore.__main__:_cli_entry

@@ -1,0 +1,14 @@
+LICENSE-APACHE
+LICENSE-MIT
+README.md
+pyproject.toml
+shardcore/__init__.py
+shardcore/__main__.py
+shardcore/neuron.py
+shardcore/verify.py
+shardcore.egg-info/PKG-INFO
+shardcore.egg-info/SOURCES.txt
+shardcore.egg-info/dependency_links.txt
+shardcore.egg-info/entry_points.txt
+shardcore.egg-info/requires.txt
+shardcore.egg-info/top_level.txt
