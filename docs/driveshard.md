@@ -1,27 +1,21 @@
-# Driveshard: Design Notes
+# Driveshard
 
-**Status:** Design notes forthcoming. Target: v1.1.
-**Spec section:** [SHARDCORE_Spec_v1.0.md §9](../SHARDCORE_Spec_v1.0.md)
-**Roadmap:** [ROADMAP.md §1.1.1](../ROADMAP.md)
+Status: **experimental** (spec PART II; `driveshard.json`, `shardcore/drive@0.1`).
 
-The Driveshard pillar is reserved at v1.0; the schema surface is fixed
-so bundles written today remain loadable by the v1.1 reference engine.
-The tick engine itself is scheduled for v1.1.
+The driveshard carries drives, chemistry, and goals. It is defined but
+experimental: the schema is sketched, the tick engine is a roadmap item, and
+the `@0.1` schema id signals that the shape may change before it goes normative.
 
-This document will cover, when written:
+When written in full, this document will cover:
 
-- **Drives.** Bounded scalar states (hunger, loneliness, curiosity,
-  libido, etc.) with per-drive baselines and saturation behavior.
-- **Chemistry.** Half-life decay variables (dopamine, cortisol,
-  oxytocin, etc.) that modulate drive responsiveness. Distinct from
-  drives because chemistry decays on a timer, drives shift on events.
-- **Goals.** Three tiers mirroring `mindshard` memory tiers
-  (short-term, long-term, core-dream). Goal salience couples back into
-  drive saturation.
-- **Genome linkage.** Drive baselines and sensitivities derived from
-  shellshard genome data; supports breeding semantics.
-- **Epigenetic inheritance** (optional). How trauma marks decay
-  across generations.
+- **Drives** as named scalars with a half-life, and the chemistry that decays
+  between sessions.
+- **Goals** tiered like memory (short-term, long-term, core), inheriting and
+  expiring with the mindshard tiers.
+- **Genome linkage**: base rates read from shell genome data when present.
+- **Epigenetic inheritance**: how marks transfer to offspring at reduced
+  intensity and fade across generations.
 
-Contributions and design discussion welcome. See `CONTRIBUTING.md` for
-the spec RFC flow.
+Until the tick engine lands, treat a driveshard as authored data a runtime may
+read but is not required to simulate. See the "substrate, in motion" milestone
+in [../ROADMAP.md](../ROADMAP.md) and [pillars.md](pillars.md).

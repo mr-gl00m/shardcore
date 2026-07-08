@@ -13,9 +13,9 @@ library moves faster, as long as it remains conformant.
 ## TL;DR
 
 - **Bugs / compatibility issues**: open a GitHub issue with a minimal
-  reproduction and the output of `python -m shardcore verify <bundle>`.
-- **Library PRs**: fork, branch, `pip install -e ".[dev]"`, write a
-  failing test, make it pass, open a PR.
+  reproduction and the output of `python -m shardcore diagnose <bundle>`.
+- **Library PRs**: fork, branch, install the dev extras, write a failing
+  test, make it pass, open a PR.
 - **Spec changes**: open a `spec:` issue first with a short RFC.
   Do not open a spec PR before the RFC has rough consensus.
 
@@ -24,17 +24,20 @@ library moves faster, as long as it remains conformant.
 ## Dev setup
 
 Requirements: Python 3.10 or newer. The only runtime dependency is
-`numpy`; the dev extras add `pytest` and `ruff`.
+`numpy` (needed for the neuron substrate; the bundle I/O core is
+standard-library only). The dev extras add `pytest` and `ruff`.
 
 ```bash
 git clone https://github.com/mr-gl00m/shardcore.git
 cd shardcore
-python -m venv .venv
-# Linux / macOS
-source .venv/bin/activate
-# Windows
-.venv\Scripts\activate
 
+# with uv (recommended)
+uv venv
+uv pip install -e ".[dev]"
+
+# or with venv + pip
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
@@ -44,11 +47,11 @@ Run the full check locally before opening a PR:
 python -m pytest -q
 python -m ruff check .
 python -m ruff format --check .
-python -m shardcore verify examples/minimal.shard
 python -m shardcore verify examples/standard.shard
+python -m shardcore diagnose examples/standard.shard
 ```
 
-The CI matrix runs this on ubuntu / macos / windows × Python 3.10–3.13.
+The CI matrix runs this on ubuntu / macos / windows x Python 3.10 to 3.13.
 A PR that fails on one OS but passes on another is still failing.
 
 ---
@@ -57,11 +60,14 @@ A PR that fails on one OS but passes on another is still failing.
 
 Scope that fits the reference library:
 
-- Loader / validator correctness and clearer error messages.
+- Reader, verifier, diagnoser, and migration correctness, and clearer
+  error messages.
+- The migration chain: new migrations, idempotence and loss-free fixes.
+- The schema-id registry: mapping new members to schema ids.
 - Neuronshard runtime: numerical fixes, small performance wins that do
   not change observable output.
-- Conformance tests, especially bundles we currently fail to reject
-  that the spec says we should.
+- Conformance tests, especially bundles we currently mis-classify that
+  the spec says we should reject or migrate.
 - Docs, typos, readable examples.
 
 Scope that does **not** fit here and belongs in a downstream app:
@@ -69,6 +75,8 @@ Scope that does **not** fit here and belongs in a downstream app:
 - LLM integration, prompt assembly, chat UIs.
 - Persistent session storage beyond bundle I/O.
 - GUI or web surfaces.
+- The full batch-migration safety envelope (backup, run-log, rollback).
+  The library exposes atomic `migrate_bundle`; a tool wraps it.
 
 Process:
 
@@ -105,13 +113,15 @@ That makes spec changes expensive. Please do not open a spec PR cold.
    - What the current spec says.
    - What you want it to say.
    - The concrete use case that motivates the change.
-   - Any runtime-compatibility impact (does this break v1.0 bundles?).
+   - Any runtime-compatibility impact (does this break v1.0 or v1.9
+     bundles?).
 2. Discussion happens on the issue. Other implementers get a chance to
    weigh in.
 3. If there is rough consensus, the change lands as a PR against
-   `SHARDCORE_Spec_v1.0.md` (for clarifications that do not change
-   behavior) or against a new `SHARDCORE_Spec_vX.Y_addendum.md` file
-   (for additive changes), with a version bump in `ROADMAP.md`.
+   `SHARDCORE_Spec_v1.9.md` (for clarifications that do not change
+   behavior) or as a new optional pillar (a new row in the pillar
+   registry with its own `schema` id) for additive changes, with a
+   milestone update in `ROADMAP.md`.
 4. Normative changes **must** ship alongside conformance tests that
    exercise them. A spec change with no test is a footnote, not a
    contract.
@@ -126,6 +136,8 @@ That makes spec changes expensive. Please do not open a spec PR cold.
 
 Breaking changes do not land in v1.x. They go on the roadmap for a
 future major version and require explicit backward-compatibility notes.
+Additive changes (a new optional pillar, a new schema id) stay within
+the v1 line.
 
 ---
 

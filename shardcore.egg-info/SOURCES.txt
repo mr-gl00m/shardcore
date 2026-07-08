@@ -1,10 +1,16 @@
 LICENSE-APACHE
 LICENSE-MIT
-README.md
 pyproject.toml
 shardcore/__init__.py
 shardcore/__main__.py
+shardcore/bundle.py
+shardcore/diagnose.py
+shardcore/migrate.py
+shardcore/migrations.py
+shardcore/model.py
+shardcore/mutable.py
 shardcore/neuron.py
+shardcore/registry.py
 shardcore/verify.py
 shardcore.egg-info/PKG-INFO
 shardcore.egg-info/SOURCES.txt

@@ -1,27 +1,21 @@
-# Dream Consolidation: Design Notes
+# Dream consolidation
 
-**Status:** Design notes forthcoming. Target: v1.1.
-**Spec section:** [SHARDCORE_Spec_v1.0.md §12](../SHARDCORE_Spec_v1.0.md)
-**Roadmap:** [ROADMAP.md §1.1](../ROADMAP.md)
+Status: **reserved** (spec PART II).
 
-Dream consolidation is a between-session pass. v1.0 reserves the surface
-so that bundles produced by the eventual reference implementation remain
-v1.0-spec-compatible.
+Dream consolidation is a between-session pass over short-term memory that
+produces long-term entries and writes `mindshard.dream_log`. v1.9 reserves the
+`dream_log` slot in the mind pillar; the consolidator itself is a roadmap item.
 
-This document will cover, when written:
+When written in full, this document will cover:
 
-- **Trigger conditions.** Session count, idle time, explicit
-  `dream()` calls.
-- **Clustering.** Tag overlap and embedding similarity over recent
-  short-term entries.
-- **Promotion rules.** When a long-term cluster is promoted to a
-  core memory, when a core memory is allowed to fade, how
-  identity-defining patterns are detected.
-- **Hebbian application.** How Neuronshard edge weights are updated
-  for memories that co-activated during the session.
-- **Trace format.** The human-readable lines written to
-  `mindshard.dream_log` (capped list, ~20 entries).
-- **Determinism and reproducibility.** Whether dream is required to
-  be deterministic given identical input bundles.
+- **Triggers**: when a consolidation pass runs (session close, idle time, an
+  explicit call).
+- **Clustering and promotion**: how short-term entries group and which get
+  promoted to long-term or core, deterministically given a seed.
+- **Neuronshard coupling**: an optional Hebbian update on co-active memory
+  clusters, behind a flag.
+- **The `dream_log` trace format**: `cluster`, `entries`, `consolidated_text`,
+  `promoted_to`.
+- **Determinism**: a second pass on unchanged inputs is a no-op.
 
-Contributions welcome.
+See the "substrate, in motion" milestone in [../ROADMAP.md](../ROADMAP.md).

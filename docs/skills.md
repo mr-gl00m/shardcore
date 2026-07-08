@@ -1,26 +1,21 @@
-# Skills Folder: Design Notes
+# Skills
 
-**Status:** Read-only schema design forthcoming. Targets: v1.1 (read-only)
-and v1.2 (learned write-back).
-**Spec section:** [SHARDCORE_Spec_v1.0.md §10](../SHARDCORE_Spec_v1.0.md)
-**Roadmap:** [ROADMAP.md §1.1.5](../ROADMAP.md) (read-only),
-[ROADMAP.md §1.2](../ROADMAP.md) (learned)
+Status: **experimental** (spec PART II; under `assets/`, `shardcore/assets@1.0`).
 
-The `skills/` folder is reserved at v1.0; v1.0 loaders MAY ignore it
-entirely, and a conformant v1.0 bundle MAY include it.
+Skills are retrieval-gated abilities carried as markdown under the bundle's
+`assets/` folder. v1.9 folds skills into the single `assets/` folder alongside
+images, receipts, and references; the activation and write-back semantics stay
+experimental.
 
-This document will cover, when written:
+When written in full, this document will cover:
 
-- **File layout.** One `*.md` file per skill, with YAML frontmatter
-  (`name` matching filename stem, `description`, `authored`,
-  activation tags).
-- **Activation gating.** Retrieval-driven by default; `always_on: true`
-  bypasses the gate.
-- **Read-only schema (v1.1).** Frontmatter, body, activation tags,
-  and the `always_on` flag. Loaders that understand v1.1 MUST treat
-  the body as authoritative skill content.
-- **Learned write-back (v1.2).** `proficiency`, `xp`, `usage_count`
-  fields managed by the runtime. Reserved for v1.0 read-only; loaders
-  MUST preserve unknown fields on save.
+- **File layout and frontmatter**: the schema validated on load.
+- **Activation**: always-on versus retrieval-gated, expressed as
+  mindshard and driveshard queries.
+- **Learned fields**: `proficiency`, `xp`, `usage_count`, read-only for now.
+  Any sanctioned write-back path (with a locking and atomic-write contract) is
+  a later milestone.
 
-Contributions welcome.
+Security note: a skill can declare behavior a runtime may execute. Treat skills
+from untrusted bundles as code and sandbox them accordingly. See
+[../SECURITY.md](../SECURITY.md) and [pillars.md](pillars.md).

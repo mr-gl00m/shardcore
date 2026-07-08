@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shardcore"
-version = "0.1.0"
-description = "Reference loader, validator, and neural-substrate runtime for the .shard bundle format."
+version = "1.9.0"
+description = "Reference loader, validator, migrator, and neural-substrate runtime for the .shard bundle format."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -36,7 +36,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/mr-gl00m/shardcore"
-Specification = "https://github.com/mr-gl00m/shardcore/blob/main/SHARDCORE_Spec_v1.0.md"
+Specification = "https://github.com/mr-gl00m/shardcore/blob/main/SHARDCORE_Spec_v1.9.md"
 Roadmap = "https://github.com/mr-gl00m/shardcore/blob/main/ROADMAP.md"
 Issues = "https://github.com/mr-gl00m/shardcore/issues"
 

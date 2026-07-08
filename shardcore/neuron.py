@@ -1,4 +1,4 @@
-"""Neuronshard reference runtime — Leaky Integrate-and-Fire dynamics.
+"""Neuronshard reference runtime: Leaky Integrate-and-Fire dynamics.
 
 Pure-numpy extraction of the LIF network prototyped in shard_brain_viz.py.
 No Qt/visualization dependencies. Provides:
@@ -12,6 +12,7 @@ No Qt/visualization dependencies. Provides:
 
 Spec: see SHARDCORE_Spec_v1.0.md §Neuronshard.
 """
+
 from __future__ import annotations
 
 import json
@@ -19,32 +20,31 @@ import math
 import random
 import sys
 import zipfile
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
-
 
 # ─────────────────────────────────────────────
 #  Constants (from Drosophila connectome model)
 # ─────────────────────────────────────────────
-V_REST = -52.0        # mV, resting potential
-V_THRESHOLD = -45.0   # mV, spike threshold
-V_RESET = -52.0       # mV, post-spike reset
-TAU_MEMBRANE = 20.0   # ms, membrane time constant
-TAU_SYNAPSE = 5.0     # ms, synaptic input decay
-T_REFRACTORY = 2.2    # ms, refractory period after spike
-T_DELAY = 1.8         # ms, synaptic transmission delay
-W_SYN_BASE = 0.275    # mV, base weight per synapse
+V_REST = -52.0  # mV, resting potential
+V_THRESHOLD = -45.0  # mV, spike threshold
+V_RESET = -52.0  # mV, post-spike reset
+TAU_MEMBRANE = 20.0  # ms, membrane time constant
+TAU_SYNAPSE = 5.0  # ms, synaptic input decay
+T_REFRACTORY = 2.2  # ms, refractory period after spike
+T_DELAY = 1.8  # ms, synaptic transmission delay
+W_SYN_BASE = 0.275  # mV, base weight per synapse
 
-DT_SUBSTEP = 0.5      # ms, default integration substep
+DT_SUBSTEP = 0.5  # ms, default integration substep
 
 # Hebbian
-HEBBIAN_WINDOW = 20.0 # ms, co-firing window
-HEBBIAN_ETA = 0.005   # learning rate
-W_MAX = 2.0           # mV, max absolute weight
+HEBBIAN_WINDOW = 20.0  # ms, co-firing window
+HEBBIAN_ETA = 0.005  # learning rate
+W_MAX = 2.0  # mV, max absolute weight
 
 # Poisson
 DEFAULT_POISSON_RATE = 150.0  # Hz
@@ -65,28 +65,35 @@ class NeuronType(str, Enum):
 
 
 STAT_LABELS = {
-    "STR": "Strength", "END": "Endurance", "VIG": "Vigor", "DEX": "Dexterity",
-    "TMP": "Temperament", "ACU": "Acuity", "INS": "Insight", "ATT": "Attunement",
-    "CNV": "Conviction", "PRS": "Presence",
+    "STR": "Strength",
+    "END": "Endurance",
+    "VIG": "Vigor",
+    "DEX": "Dexterity",
+    "TMP": "Temperament",
+    "ACU": "Acuity",
+    "INS": "Insight",
+    "ATT": "Attunement",
+    "CNV": "Conviction",
+    "PRS": "Presence",
 }
 
 EMOTIONAL_STATE_BIASES: dict[str, dict[str, float]] = {
-    "Defensive Sarcasm":   {"Anger": 0.4, "Disgust": 0.2},
+    "Defensive Sarcasm": {"Anger": 0.4, "Disgust": 0.2},
     "Melancholic Longing": {"Sadness": 0.5, "Curiosity": 0.2},
-    "Raw Vulnerability":   {"Fear": 0.4, "Sadness": 0.3, "Trust": 0.2},
-    "Fierce Loyalty":      {"Trust": 0.6, "Anger": 0.2},
-    "Playful Menace":      {"Joy": 0.3, "Anger": 0.2, "Surprise": 0.3},
-    "resigned":            {"Sadness": 0.3, "Trust": 0.1},
-    "grateful":            {"Joy": 0.3, "Trust": 0.4},
-    "submissive":          {"Fear": 0.2, "Trust": 0.3},
-    "devoted":             {"Trust": 0.5, "Joy": 0.2},
-    "accepting":           {"Trust": 0.3, "Sadness": 0.1},
-    "purposeful":          {"Joy": 0.2, "Trust": 0.2, "Anger": 0.1},
+    "Raw Vulnerability": {"Fear": 0.4, "Sadness": 0.3, "Trust": 0.2},
+    "Fierce Loyalty": {"Trust": 0.6, "Anger": 0.2},
+    "Playful Menace": {"Joy": 0.3, "Anger": 0.2, "Surprise": 0.3},
+    "resigned": {"Sadness": 0.3, "Trust": 0.1},
+    "grateful": {"Joy": 0.3, "Trust": 0.4},
+    "submissive": {"Fear": 0.2, "Trust": 0.3},
+    "devoted": {"Trust": 0.5, "Joy": 0.2},
+    "accepting": {"Trust": 0.3, "Sadness": 0.1},
+    "purposeful": {"Joy": 0.2, "Trust": 0.2, "Anger": 0.1},
 }
 
 
 # ─────────────────────────────────────────────
-#  Topology (pure data — no rendering)
+#  Topology (pure data, no rendering)
 # ─────────────────────────────────────────────
 @dataclass
 class NodeInfo:
@@ -110,8 +117,7 @@ class ShardBrainGraph:
         self.nodes: list[NodeInfo] = []
         self.edges: list[EdgeInfo] = []
 
-    def add_node(self, label: str, ntype: NeuronType,
-                 receives_noise: bool = False) -> int:
+    def add_node(self, label: str, ntype: NeuronType, receives_noise: bool = False) -> int:
         idx = len(self.nodes)
         self.nodes.append(NodeInfo(idx, label, ntype, receives_noise=receives_noise))
         return idx
@@ -137,12 +143,12 @@ class ShardBrainGraph:
         """Position nodes in concentric rings by type (deterministic given RNG state)."""
         groups = {
             NeuronType.IDENTITY_ANCHOR: (0, 70),
-            NeuronType.MEMORY_CORE:     (1, 150),
-            NeuronType.EMOTION:         (1, 160),
-            NeuronType.MEMORY_LTM:      (2, 250),
-            NeuronType.DRIVE:           (2, 260),
-            NeuronType.MEMORY_STM:      (3, 350),
-            NeuronType.IMPULSE:         (4, 430),
+            NeuronType.MEMORY_CORE: (1, 150),
+            NeuronType.EMOTION: (1, 160),
+            NeuronType.MEMORY_LTM: (2, 250),
+            NeuronType.DRIVE: (2, 260),
+            NeuronType.MEMORY_STM: (3, 350),
+            NeuronType.IMPULSE: (4, 430),
         }
         rings: dict[int, list[tuple[NodeInfo, float]]] = {}
         for node in self.nodes:
@@ -217,11 +223,15 @@ class LIFNetwork:
         self.sim_time += dt
         return self.fired.copy()
 
-    def tick(self, n_steps: int, dt: float = DT_SUBSTEP,
-             noise_mask: np.ndarray | None = None,
-             noise_rate: float = 0.0,
-             hebbian: bool = False,
-             hebbian_eta: float = HEBBIAN_ETA) -> np.ndarray:
+    def tick(
+        self,
+        n_steps: int,
+        dt: float = DT_SUBSTEP,
+        noise_mask: np.ndarray | None = None,
+        noise_rate: float = 0.0,
+        hebbian: bool = False,
+        hebbian_eta: float = HEBBIAN_ETA,
+    ) -> np.ndarray:
         """Advance the network by n_steps of size dt (ms). Returns spike counts this call."""
         spikes_before = self.total_spikes.copy()
         for _ in range(n_steps):
@@ -232,8 +242,7 @@ class LIFNetwork:
                 self.apply_hebbian(hebbian_eta)
         return self.total_spikes - spikes_before
 
-    def inject_poisson(self, node_mask: np.ndarray, rate: float,
-                       dt: float, weight: float) -> None:
+    def inject_poisson(self, node_mask: np.ndarray, rate: float, dt: float, weight: float) -> None:
         if rate <= 0:
             return
         lam = rate * dt / 1000.0
@@ -253,7 +262,8 @@ class LIFNetwork:
                 self.W_learned[pre_mask, j] += delta
                 self.W[pre_mask, j] = np.clip(
                     self.W_initial[pre_mask, j] + self.W_learned[pre_mask, j],
-                    -W_MAX, W_MAX,
+                    -W_MAX,
+                    W_MAX,
                 )
 
     def get_activation(self) -> np.ndarray:
@@ -309,7 +319,8 @@ def build_brain_from_shard(shard: dict, seed: int | None = None) -> ShardBrainGr
     for key in ("STR", "END", "VIG", "DEX", "TMP", "ACU", "INS", "ATT", "CNV", "PRS"):
         sv = stat_vals.get(key, 5.0)
         id_nodes[key] = g.add_node(
-            STAT_LABELS[key], NeuronType.IDENTITY_ANCHOR,
+            STAT_LABELS[key],
+            NeuronType.IDENTITY_ANCHOR,
             receives_noise=sv >= 7,
         )
 
@@ -335,118 +346,127 @@ def build_brain_from_shard(shard: dict, seed: int | None = None) -> ShardBrainGr
     nature_label = (nature.get("label") or "").lower()
     is_lonely = "lonely" in nature_label or "longing" in nature_label
     drive_defs = [
-        ("Loneliness",      is_lonely),
-        ("Validation",      False),
-        ("Creative Drive",  False),
-        ("Rest",            True),
+        ("Loneliness", is_lonely),
+        ("Validation", False),
+        ("Creative Drive", False),
+        ("Rest", True),
         ("Curiosity Drive", True),
     ]
     dr_nodes: dict[str, int] = {
-        name: g.add_node(name, NeuronType.DRIVE, receives_noise=noise)
-        for name, noise in drive_defs
+        name: g.add_node(name, NeuronType.DRIVE, receives_noise=noise) for name, noise in drive_defs
     }
 
     # Memories
-    stm = [g.add_node(f"STM_{i+1:02d}", NeuronType.MEMORY_STM, receives_noise=True)
-           for i in range(8)]
-    ltm = [g.add_node(f"LTM_{i+1:02d}", NeuronType.MEMORY_LTM) for i in range(6)]
-    core_mem = [g.add_node(f"Core_{i+1}", NeuronType.MEMORY_CORE) for i in range(3)]
+    stm = [
+        g.add_node(f"STM_{i + 1:02d}", NeuronType.MEMORY_STM, receives_noise=True) for i in range(8)
+    ]
+    ltm = [g.add_node(f"LTM_{i + 1:02d}", NeuronType.MEMORY_LTM) for i in range(6)]
+    core_mem = [g.add_node(f"Core_{i + 1}", NeuronType.MEMORY_CORE) for i in range(3)]
 
     # Impulses
-    impulse_names = ["Speak", "Withdraw", "Approach", "Create", "Fight", "Flee", "Observe", "Comfort"]
+    impulse_names = [
+        "Speak",
+        "Withdraw",
+        "Approach",
+        "Create",
+        "Fight",
+        "Flee",
+        "Observe",
+        "Comfort",
+    ]
     imp_nodes: dict[str, int] = {
         name: g.add_node(name, NeuronType.IMPULSE) for name in impulse_names
     }
 
     # Identity → Emotion
-    g.add_edge(id_nodes["ATT"], em_nodes["Trust"],     w("ATT", 0.6) * nature_boost("ATT"))
-    g.add_edge(id_nodes["ATT"], em_nodes["Sadness"],   w("ATT", 0.35))
-    g.add_edge(id_nodes["INS"], em_nodes["Fear"],      w("INS", 0.5) * nature_boost("INS"))
-    g.add_edge(id_nodes["INS"], em_nodes["Sadness"],   w("INS", 0.4) * nature_boost("INS"))
+    g.add_edge(id_nodes["ATT"], em_nodes["Trust"], w("ATT", 0.6) * nature_boost("ATT"))
+    g.add_edge(id_nodes["ATT"], em_nodes["Sadness"], w("ATT", 0.35))
+    g.add_edge(id_nodes["INS"], em_nodes["Fear"], w("INS", 0.5) * nature_boost("INS"))
+    g.add_edge(id_nodes["INS"], em_nodes["Sadness"], w("INS", 0.4) * nature_boost("INS"))
     g.add_edge(id_nodes["INS"], em_nodes["Curiosity"], w("INS", 0.35))
-    g.add_edge(id_nodes["TMP"], em_nodes["Anger"],     w("TMP", 0.55))
-    g.add_edge(id_nodes["TMP"], em_nodes["Surprise"],  w("TMP", 0.3))
-    g.add_edge(id_nodes["TMP"], em_nodes["Fear"],      w("TMP", 0.25))
+    g.add_edge(id_nodes["TMP"], em_nodes["Anger"], w("TMP", 0.55))
+    g.add_edge(id_nodes["TMP"], em_nodes["Surprise"], w("TMP", 0.3))
+    g.add_edge(id_nodes["TMP"], em_nodes["Fear"], w("TMP", 0.25))
     g.add_edge(id_nodes["ACU"], em_nodes["Curiosity"], w("ACU", 0.6))
-    g.add_edge(id_nodes["ACU"], em_nodes["Surprise"],  w("ACU", 0.3))
-    g.add_edge(id_nodes["PRS"], em_nodes["Trust"],     w("PRS", 0.45))
-    g.add_edge(id_nodes["PRS"], em_nodes["Joy"],       w("PRS", 0.35))
-    g.add_edge(id_nodes["CNV"], em_nodes["Anger"],     w("CNV", 0.3))
-    g.add_edge(id_nodes["CNV"], em_nodes["Trust"],     w("CNV", 0.3))
-    g.add_edge(id_nodes["END"], em_nodes["Trust"],     w("END", 0.4))
-    g.add_edge(id_nodes["END"], em_nodes["Joy"],       w("END", 0.25))
-    g.add_edge(id_nodes["VIG"], em_nodes["Joy"],       w("VIG", 0.5) * nature_boost("VIG"))
-    g.add_edge(id_nodes["VIG"], em_nodes["Surprise"],  w("VIG", 0.3) * nature_boost("VIG"))
-    g.add_edge(id_nodes["STR"], em_nodes["Anger"],     w("STR", 0.4))
-    g.add_edge(id_nodes["DEX"], em_nodes["Surprise"],  w("DEX", 0.35))
+    g.add_edge(id_nodes["ACU"], em_nodes["Surprise"], w("ACU", 0.3))
+    g.add_edge(id_nodes["PRS"], em_nodes["Trust"], w("PRS", 0.45))
+    g.add_edge(id_nodes["PRS"], em_nodes["Joy"], w("PRS", 0.35))
+    g.add_edge(id_nodes["CNV"], em_nodes["Anger"], w("CNV", 0.3))
+    g.add_edge(id_nodes["CNV"], em_nodes["Trust"], w("CNV", 0.3))
+    g.add_edge(id_nodes["END"], em_nodes["Trust"], w("END", 0.4))
+    g.add_edge(id_nodes["END"], em_nodes["Joy"], w("END", 0.25))
+    g.add_edge(id_nodes["VIG"], em_nodes["Joy"], w("VIG", 0.5) * nature_boost("VIG"))
+    g.add_edge(id_nodes["VIG"], em_nodes["Surprise"], w("VIG", 0.3) * nature_boost("VIG"))
+    g.add_edge(id_nodes["STR"], em_nodes["Anger"], w("STR", 0.4))
+    g.add_edge(id_nodes["DEX"], em_nodes["Surprise"], w("DEX", 0.35))
 
     # Emotion ↔ Emotion (inhibitory)
-    g.add_edge(em_nodes["Joy"],       em_nodes["Sadness"],   wi("VIG", -0.45))
-    g.add_edge(em_nodes["Sadness"],   em_nodes["Joy"],       wi("INS", -0.4))
-    g.add_edge(em_nodes["Fear"],      em_nodes["Trust"],     wi("INS", -0.35))
-    g.add_edge(em_nodes["Trust"],     em_nodes["Fear"],      wi("ATT", -0.3))
-    g.add_edge(em_nodes["Anger"],     em_nodes["Fear"],      wi("TMP", -0.3))
-    g.add_edge(em_nodes["Curiosity"], em_nodes["Disgust"],   wi("ACU", -0.3))
-    g.add_edge(em_nodes["Disgust"],   em_nodes["Curiosity"], wi("CNV", -0.2))
+    g.add_edge(em_nodes["Joy"], em_nodes["Sadness"], wi("VIG", -0.45))
+    g.add_edge(em_nodes["Sadness"], em_nodes["Joy"], wi("INS", -0.4))
+    g.add_edge(em_nodes["Fear"], em_nodes["Trust"], wi("INS", -0.35))
+    g.add_edge(em_nodes["Trust"], em_nodes["Fear"], wi("ATT", -0.3))
+    g.add_edge(em_nodes["Anger"], em_nodes["Fear"], wi("TMP", -0.3))
+    g.add_edge(em_nodes["Curiosity"], em_nodes["Disgust"], wi("ACU", -0.3))
+    g.add_edge(em_nodes["Disgust"], em_nodes["Curiosity"], wi("CNV", -0.2))
 
     # Drive → Emotion
-    g.add_edge(dr_nodes["Loneliness"],      em_nodes["Sadness"],   w("INS", 0.55))
-    g.add_edge(dr_nodes["Loneliness"],      em_nodes["Fear"],      w("INS", 0.25))
+    g.add_edge(dr_nodes["Loneliness"], em_nodes["Sadness"], w("INS", 0.55))
+    g.add_edge(dr_nodes["Loneliness"], em_nodes["Fear"], w("INS", 0.25))
     g.add_edge(dr_nodes["Curiosity Drive"], em_nodes["Curiosity"], w("ACU", 0.5))
-    g.add_edge(dr_nodes["Creative Drive"],  em_nodes["Joy"],       w("PRS", 0.4))
-    g.add_edge(dr_nodes["Validation"],      em_nodes["Joy"],       w("ATT", 0.35))
-    g.add_edge(dr_nodes["Rest"],            em_nodes["Sadness"],   w("END", 0.2))
-    g.add_edge(dr_nodes["Rest"],            em_nodes["Anger"],     wi("END", -0.3))
+    g.add_edge(dr_nodes["Creative Drive"], em_nodes["Joy"], w("PRS", 0.4))
+    g.add_edge(dr_nodes["Validation"], em_nodes["Joy"], w("ATT", 0.35))
+    g.add_edge(dr_nodes["Rest"], em_nodes["Sadness"], w("END", 0.2))
+    g.add_edge(dr_nodes["Rest"], em_nodes["Anger"], wi("END", -0.3))
 
     # Memory → Emotion
-    g.add_edge(core_mem[0], em_nodes["Trust"],     0.55)
-    g.add_edge(core_mem[0], em_nodes["Sadness"],   0.35)
+    g.add_edge(core_mem[0], em_nodes["Trust"], 0.55)
+    g.add_edge(core_mem[0], em_nodes["Sadness"], 0.35)
     g.add_edge(core_mem[1], em_nodes["Curiosity"], 0.45)
-    g.add_edge(core_mem[1], em_nodes["Joy"],       0.30)
-    g.add_edge(core_mem[2], em_nodes["Fear"],      0.40)
-    g.add_edge(core_mem[2], em_nodes["Anger"],     0.30)
-    for i, l in enumerate(ltm):
-        g.add_edge(l, em_nodes[emotion_names[i % len(emotion_names)]], 0.30)
+    g.add_edge(core_mem[1], em_nodes["Joy"], 0.30)
+    g.add_edge(core_mem[2], em_nodes["Fear"], 0.40)
+    g.add_edge(core_mem[2], em_nodes["Anger"], 0.30)
+    for i, ltm_node in enumerate(ltm):
+        g.add_edge(ltm_node, em_nodes[emotion_names[i % len(emotion_names)]], 0.30)
     for i, s in enumerate(stm):
         g.add_edge(s, em_nodes[["Curiosity", "Surprise", "Joy", "Fear"][i % 4]], 0.18)
 
     # Emotion → Impulse
-    g.add_edge(em_nodes["Joy"],       imp_nodes["Approach"], w("PRS", 0.55))
-    g.add_edge(em_nodes["Joy"],       imp_nodes["Speak"],    w("PRS", 0.35))
-    g.add_edge(em_nodes["Fear"],      imp_nodes["Flee"],     w("INS", 0.6))
-    g.add_edge(em_nodes["Fear"],      imp_nodes["Withdraw"], w("INS", 0.45))
-    g.add_edge(em_nodes["Sadness"],   imp_nodes["Withdraw"], w("INS", 0.55))
-    g.add_edge(em_nodes["Sadness"],   imp_nodes["Comfort"],  w("ATT", 0.3))
-    g.add_edge(em_nodes["Curiosity"], imp_nodes["Observe"],  w("ACU", 0.55))
+    g.add_edge(em_nodes["Joy"], imp_nodes["Approach"], w("PRS", 0.55))
+    g.add_edge(em_nodes["Joy"], imp_nodes["Speak"], w("PRS", 0.35))
+    g.add_edge(em_nodes["Fear"], imp_nodes["Flee"], w("INS", 0.6))
+    g.add_edge(em_nodes["Fear"], imp_nodes["Withdraw"], w("INS", 0.45))
+    g.add_edge(em_nodes["Sadness"], imp_nodes["Withdraw"], w("INS", 0.55))
+    g.add_edge(em_nodes["Sadness"], imp_nodes["Comfort"], w("ATT", 0.3))
+    g.add_edge(em_nodes["Curiosity"], imp_nodes["Observe"], w("ACU", 0.55))
     g.add_edge(em_nodes["Curiosity"], imp_nodes["Approach"], w("ACU", 0.35))
-    g.add_edge(em_nodes["Anger"],     imp_nodes["Fight"],    w("TMP", 0.6))
-    g.add_edge(em_nodes["Anger"],     imp_nodes["Speak"],    w("TMP", 0.35))
-    g.add_edge(em_nodes["Trust"],     imp_nodes["Approach"], w("ATT", 0.5))
-    g.add_edge(em_nodes["Trust"],     imp_nodes["Comfort"],  w("ATT", 0.45))
-    g.add_edge(em_nodes["Disgust"],   imp_nodes["Withdraw"], w("CNV", 0.45))
-    g.add_edge(em_nodes["Surprise"],  imp_nodes["Observe"],  w("ACU", 0.4))
+    g.add_edge(em_nodes["Anger"], imp_nodes["Fight"], w("TMP", 0.6))
+    g.add_edge(em_nodes["Anger"], imp_nodes["Speak"], w("TMP", 0.35))
+    g.add_edge(em_nodes["Trust"], imp_nodes["Approach"], w("ATT", 0.5))
+    g.add_edge(em_nodes["Trust"], imp_nodes["Comfort"], w("ATT", 0.45))
+    g.add_edge(em_nodes["Disgust"], imp_nodes["Withdraw"], w("CNV", 0.45))
+    g.add_edge(em_nodes["Surprise"], imp_nodes["Observe"], w("ACU", 0.4))
 
     # Drive → Impulse
-    g.add_edge(dr_nodes["Loneliness"],      imp_nodes["Approach"], w("ATT", 0.45))
-    g.add_edge(dr_nodes["Creative Drive"],  imp_nodes["Create"],   w("PRS", 0.6))
-    g.add_edge(dr_nodes["Curiosity Drive"], imp_nodes["Observe"],  w("ACU", 0.4))
-    g.add_edge(dr_nodes["Validation"],      imp_nodes["Speak"],    w("PRS", 0.35))
-    g.add_edge(dr_nodes["Rest"],            imp_nodes["Withdraw"], w("END", 0.35))
+    g.add_edge(dr_nodes["Loneliness"], imp_nodes["Approach"], w("ATT", 0.45))
+    g.add_edge(dr_nodes["Creative Drive"], imp_nodes["Create"], w("PRS", 0.6))
+    g.add_edge(dr_nodes["Curiosity Drive"], imp_nodes["Observe"], w("ACU", 0.4))
+    g.add_edge(dr_nodes["Validation"], imp_nodes["Speak"], w("PRS", 0.35))
+    g.add_edge(dr_nodes["Rest"], imp_nodes["Withdraw"], w("END", 0.35))
 
     # Impulse cross-inhibition
-    g.add_edge(imp_nodes["Fight"],    imp_nodes["Flee"],     -0.45)
-    g.add_edge(imp_nodes["Flee"],     imp_nodes["Fight"],    -0.40)
+    g.add_edge(imp_nodes["Fight"], imp_nodes["Flee"], -0.45)
+    g.add_edge(imp_nodes["Flee"], imp_nodes["Fight"], -0.40)
     g.add_edge(imp_nodes["Approach"], imp_nodes["Withdraw"], -0.50)
     g.add_edge(imp_nodes["Withdraw"], imp_nodes["Approach"], -0.40)
-    g.add_edge(imp_nodes["Speak"],    imp_nodes["Withdraw"], -0.30)
+    g.add_edge(imp_nodes["Speak"], imp_nodes["Withdraw"], -0.30)
 
     # Feedback loops
     friend_scale = max(0.1, friendship / 10.0) if isinstance(friendship, (int, float)) else 0.5
-    g.add_edge(em_nodes["Trust"],     id_nodes["ATT"], 0.15 * friend_scale)
-    g.add_edge(em_nodes["Anger"],     id_nodes["TMP"], 0.15)
+    g.add_edge(em_nodes["Trust"], id_nodes["ATT"], 0.15 * friend_scale)
+    g.add_edge(em_nodes["Anger"], id_nodes["TMP"], 0.15)
     g.add_edge(em_nodes["Curiosity"], id_nodes["ACU"], 0.12)
-    g.add_edge(em_nodes["Sadness"],   id_nodes["INS"], 0.12 * nature_boost("INS"))
-    g.add_edge(em_nodes["Joy"],       id_nodes["PRS"], 0.10)
+    g.add_edge(em_nodes["Sadness"], id_nodes["INS"], 0.12 * nature_boost("INS"))
+    g.add_edge(em_nodes["Joy"], id_nodes["PRS"], 0.10)
 
     # Inter-memory connections
     for i, cm in enumerate(core_mem):
@@ -472,7 +492,7 @@ def build_brain_from_shard(shard: dict, seed: int | None = None) -> ShardBrainGr
 
 
 # ─────────────────────────────────────────────
-#  neuronshard.json (de)serialization — schema v1.0
+#  neuronshard.json (de)serialization: schema v1.0
 # ─────────────────────────────────────────────
 NEURONSHARD_SCHEMA_VERSION = "1.0"
 
@@ -493,10 +513,7 @@ def neuronshard_from_runtime(graph: ShardBrainGraph, net: LIFNetwork) -> dict:
                 }
                 for n in graph.nodes
             ],
-            "edges": [
-                {"src": e.src, "dst": e.dst, "weight": e.weight}
-                for e in graph.edges
-            ],
+            "edges": [{"src": e.src, "dst": e.dst, "weight": e.weight} for e in graph.edges],
         },
         "state": {
             "sim_time": net.sim_time,
@@ -593,18 +610,27 @@ def main(argv: Iterable[str] | None = None) -> int:
         description="Tick the Neuronshard runtime on a .shard bundle or soulshard JSON.",
     )
     parser.add_argument("shard", help="path to .shard bundle or soulshard.json")
-    parser.add_argument("--ticks", type=int, default=200,
-                        help="number of integration steps to run (default: 200)")
-    parser.add_argument("--dt", type=float, default=DT_SUBSTEP,
-                        help=f"substep size in ms (default: {DT_SUBSTEP})")
-    parser.add_argument("--noise", type=float, default=DEFAULT_POISSON_RATE,
-                        help="Poisson noise rate in Hz (default: %(default)s)")
-    parser.add_argument("--hebbian", action="store_true",
-                        help="enable Hebbian learning during ticks")
-    parser.add_argument("--seed", type=int, default=None,
-                        help="RNG seed for reproducible topology + noise")
-    parser.add_argument("--save", type=str, default=None,
-                        help="write final neuronshard.json state to this path")
+    parser.add_argument(
+        "--ticks", type=int, default=200, help="number of integration steps to run (default: 200)"
+    )
+    parser.add_argument(
+        "--dt", type=float, default=DT_SUBSTEP, help=f"substep size in ms (default: {DT_SUBSTEP})"
+    )
+    parser.add_argument(
+        "--noise",
+        type=float,
+        default=DEFAULT_POISSON_RATE,
+        help="Poisson noise rate in Hz (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--hebbian", action="store_true", help="enable Hebbian learning during ticks"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="RNG seed for reproducible topology + noise"
+    )
+    parser.add_argument(
+        "--save", type=str, default=None, help="write final neuronshard.json state to this path"
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     if args.seed is not None:

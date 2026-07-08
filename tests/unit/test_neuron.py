@@ -1,4 +1,5 @@
-"""Unit tests for shardcore.neuron — LIF dynamics + neuronshard round-trip."""
+"""Unit tests for shardcore.neuron: LIF dynamics + neuronshard round-trip."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -9,7 +10,6 @@ from shardcore.neuron import (
     HEBBIAN_ETA,
     T_REFRACTORY,
     V_REST,
-    V_THRESHOLD,
     LIFNetwork,
     NeuronType,
     ShardBrainGraph,
@@ -18,8 +18,8 @@ from shardcore.neuron import (
     runtime_from_neuronshard,
 )
 
-
 # ─── LIF dynamics ────────────────────────────────────────────
+
 
 def test_rests_at_vrest_without_input():
     """With no input, a neuron decays toward V_REST and never fires."""
@@ -51,7 +51,7 @@ def test_refractory_period_blocks_immediate_refire():
         if net.total_spikes[0] >= 1:
             break
     assert net.total_spikes[0] >= 1, "neuron failed to fire under strong drive"
-    # Keep driving through the refractory period — no additional spikes allowed
+    # Keep driving through the refractory period; no additional spikes allowed
     n_ref_steps = int(T_REFRACTORY / DT_SUBSTEP)
     spikes_at_first = int(net.total_spikes[0])
     for _ in range(n_ref_steps - 1):
@@ -64,7 +64,7 @@ def test_excitatory_edge_propagates_spikes():
     W = np.zeros((2, 2))
     W[0, 1] = 5.0
     net = LIFNetwork(2, W)
-    drive = np.array([80.0, 0.0])  # drive A only — B only sees A's synaptic output
+    drive = np.array([80.0, 0.0])  # drive A only; B only sees A's synaptic output
     for _ in range(2000):
         net.step(DT_SUBSTEP, external_input=drive)
     assert net.total_spikes[0] >= 1
@@ -80,7 +80,7 @@ def test_inhibitory_edge_reduces_post_firing():
     assert baseline.total_spikes[0] > 0  # sanity: weak drive still spikes
 
     W_inh = np.zeros((2, 2))
-    W_inh[0, 1] = -100.0  # strong inhibition — shunts B's accumulation
+    W_inh[0, 1] = -100.0  # strong inhibition, shunts B's accumulation
     inhibited = LIFNetwork(2, W_inh)
     for _ in range(2000):
         inhibited.step(DT_SUBSTEP, external_input=np.array([80.0, 4.0]))
@@ -90,12 +90,13 @@ def test_inhibitory_edge_reduces_post_firing():
 
 # ─── Hebbian learning ────────────────────────────────────────
 
+
 def test_hebbian_strengthens_co_firing_excitatory_edge():
     """Phase-shifted co-firing on an excitatory edge should grow W_learned.
 
     Drive A hard and let its synaptic output drive B through the edge. The
     synaptic delay means B fires AFTER A, so at B's fire-step A's spike is
-    still inside the Hebbian window — the edge gets reinforced.
+    still inside the Hebbian window, so the edge gets reinforced.
     """
     W = np.zeros((2, 2))
     W[0, 1] = 8.0
@@ -110,13 +111,21 @@ def test_hebbian_strengthens_co_firing_excitatory_edge():
 
 # ─── Topology + serialization ────────────────────────────────
 
+
 def _minimal_shard() -> dict:
     return {
         "name": "Test Persona",
         "stat_block": {
-            "STR": 5, "END": 6, "VIG": 7, "DEX": 5,
-            "TMP": 4, "ACU": 8, "INS": 6, "ATT": 7,
-            "CNV": 5, "PRS": 6,
+            "STR": 5,
+            "END": 6,
+            "VIG": 7,
+            "DEX": 5,
+            "TMP": 4,
+            "ACU": 8,
+            "INS": 6,
+            "ATT": 7,
+            "CNV": 5,
+            "PRS": 6,
         },
         "nature": {"label": "curious and kind", "increased_stat": "ACU", "decreased_stat": "STR"},
         "emotional_states": ["Fierce Loyalty", "Melancholic Longing"],
@@ -130,7 +139,7 @@ def test_build_brain_from_shard_is_deterministic_with_seed():
     g2 = build_brain_from_shard(_minimal_shard(), seed=42)
     assert len(g1.nodes) == len(g2.nodes)
     assert len(g1.edges) == len(g2.edges)
-    for a, b in zip(g1.edges, g2.edges):
+    for a, b in zip(g1.edges, g2.edges, strict=True):
         assert a.src == b.src and a.dst == b.dst
         assert a.weight == pytest.approx(b.weight)
 
@@ -142,8 +151,14 @@ def test_neuronshard_roundtrip_preserves_state():
     net = LIFNetwork(len(graph.nodes), W)
     np.random.seed(7)
     noise_mask = graph.get_noise_mask()
-    net.tick(n_steps=50, dt=DT_SUBSTEP, noise_mask=noise_mask, noise_rate=100.0,
-             hebbian=True, hebbian_eta=HEBBIAN_ETA)
+    net.tick(
+        n_steps=50,
+        dt=DT_SUBSTEP,
+        noise_mask=noise_mask,
+        noise_rate=100.0,
+        hebbian=True,
+        hebbian_eta=HEBBIAN_ETA,
+    )
 
     data = neuronshard_from_runtime(graph, net)
     assert data["version"] == "1.0"
