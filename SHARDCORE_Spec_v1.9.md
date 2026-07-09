@@ -419,6 +419,10 @@ Carried from v1.0 unchanged:
 - **Prompt-injection sanitization** of shard text before prompt assembly (strip structural markdown, collapse whitespace, bound length).
 - **Integrity** detects post-creation tampering only; it does not vouch for the author (section 11.1 provenance is how authorship and timeline are proven).
 
+New in v1.9:
+
+- **Context-plane only.** A `.shard` addresses the model through its context (prompt, retrieved memory, tool inputs), never through its activation space. No pillar carries residual-stream vectors, steering directions, or model-internal state; embodiment is what the model is told, not an edit to what its internals hold. This is also why it could not be otherwise: activation directions are fit per-model and do not port across models, so a shard that reached into one model's internals would be meaningless to the next.
+
 ## Reference implementation [INFORMATIONAL]
 
 The `shardcore` library is the single reference implementation of bundle I/O: open, verify, unpack, pack, hash, migrate. It is the canonical home for the read and write paths, and the ecosystem apps (SoulForge authoring, AI Rift and Djinn Redux runtimes, Milkmaid, the shard updater) SHOULD consume it rather than each carrying their own pack or unpack. Section 9 is satisfied by construction when every writer goes through it; the observed manifest drift is what happens when they do not.
