@@ -2,14 +2,14 @@
 
 ## Supported versions
 
-The format specification is at v1.9; the reference library is at 1.9.x and
+The format specification is at v1.12; the reference library is at 1.12.x and
 may have breaking API changes between minor releases. Security fixes target
 the `main` branch and the most recent released tag.
 
 | Version          | Supported |
 |------------------|-----------|
 | `main`           | yes       |
-| latest 1.9.x tag | yes       |
+| latest 1.12.x tag | yes      |
 | older            | no        |
 
 ## Reporting a vulnerability
@@ -100,12 +100,14 @@ naming.
 - **Integrity, not authorship.** SHA-256 proves internal integrity (contents
   match the manifest), not origin. The optional `attestation` and `lineage`
   manifest fields carry provenance when present, but a bare bundle is
-  unsigned. If you need to prove origin, require an attestation or wrap the
+  unsigned. A `shard_id` names an identity and proves nothing: anyone can
+  copy one into a forged bundle, so never treat a matching id as proof of
+  descent without a matching `manifest_sha256` pin or a signature. If you need to prove origin, require an attestation or wrap the
   bundle in a detached signature.
 - **App writers can down-convert.** A first-party app that has not yet been
   routed through this library may re-save a bundle with the legacy manifest
   layout. That is a compatibility regression, not a security issue; run
-  `shardcore migrate` to restore v1.9.
+  `shardcore migrate` to restore the current layout.
 
 ## Hardening checklist for downstream apps
 

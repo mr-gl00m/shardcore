@@ -8,7 +8,96 @@ lockstep at 1.9.0.
 
 ## [Unreleased]
 
-_Nothing yet._
+## [1.12.0 / Spec v1.12] - 2026-11-24
+
+The first release since 1.9.0. Spec v1.10 and v1.11 were ratified and never
+released as libraries, so this carries all three.
+
+### Highlights
+
+- **Saving never changes a shard's version.** A save keeps the version and schema
+  ids a shard declares, an upgrade is asked for and keeps the earlier file, and an
+  app older than a shard can save it when the shard's `min_writer` allows.
+- **A character keeps one identity.** `shard_id` survives every save, bred and
+  branched characters pin their parents, and two copies of one character compare
+  as the same, newer, older or diverged. Diverged copies merge.
+- **A neural substrate that propagates and learns.** `neuron@1.1` is the default
+  for new neuronshards. `neuron@1.0` is frozen and still runs.
+
+### Added
+
+- `shardcore/core.py`: a stdlib-only reader and writer to vendor as one file, with
+  a GDScript port for Godot (`vendor/shardcore.gd`). It keeps versions
+  (`kept_spec`), honors `manifest.min_writer`, raises `UpgradeNeededError` when an
+  edit needs more than a shard declares, upgrades when told
+  (`pack_bundle(upgrade_to=...)`), and restores an earlier state at its own version
+  (`content_of`).
+- Identity and offspring lineage (spec 11.4): `manifest.shard_id`, and a lineage
+  shape for characters bred, cloned or fused from hash-pinned parents
+  (`new_shard_id`, `derived_shard_id`, `offspring_lineage`, `lineage_errors`).
+- Revision chain and three-way merge (spec 11.5): `manifest.revision`,
+  `compare_revisions`, `common_ancestor`, `merge_bundles`, `write_merge`, and
+  `python -m shardcore compare` and `merge`.
+- `neuron@1.1` (spec 8.10) and its reference engine, `shardcore.brain`: synapse
+  counts on edges, `SENSE` nodes, pooled inhibition, and an `experience` block.
+  Body stimulus (8.9) and `parts[id].neural` (6.3) tie a body to it.
+- The projection contract as code: `shardcore.projection`, with golden texts and a
+  GDScript port.
+- The shell's anatomy as a parts map (spec 6.3), `anatomy_parts_map`.
+- `read_bundle_document`, a strict in-memory reader for runtimes, and
+  `build_bundle`, which writes, verifies and atomically places a new bundle.
+- `diagnose` status `behind`: the bundle keeps its own version's rules and a newer
+  version exists. Finding `saved_below_floor`: an app older than `min_writer` saved
+  it.
+- A backup vault that keeps every bundle state a writer replaces
+  (`python -m shardcore backup`), off unless a workspace configures it.
+- `tools/ecosystem/`, which keeps vendored copies identical and runs every app's
+  real write paths against the fixtures (`docs/ecosystem.md`).
+- Eleven more conformance fixtures (29 in all) and 7 projection golden texts.
+
+### Changed
+
+- Migration reaches spec 1.12, through `0015` (identity), `0016` (revision) and
+  `0017` (anatomy). To an older target it stamps that version's schema ids. In
+  place, it keeps the earlier file.
+- **Migrating a bundle turns list-shape anatomy into the parts map.** An app that
+  reads `external_parts` or `internal_parts` finds nothing afterwards. See the
+  migration notes.
+- **`diagnose` calls a conforming older bundle `behind`, where it said `outdated`,**
+  and the command exits 0 for it.
+- Versions compare per component as integers: `1.10` is newer than `1.9`.
+- `diagnose` calls a bundle `current` only when the strict reader accepts it
+  (`strict_read_failed` otherwise).
+- The spec is one document: the v1.0 sections and the v1.1 addendum are folded in.
+
+### Migration from 1.9.0
+
+Reading needs no change. A 1.9.0 reader opens 1.12 bundles, and this library opens
+every 1.x bundle. Before an app writes with this release:
+
+- **Anatomy.** After a migration, read `anatomy_profile["parts"][id]`, not the lists:
+
+  ```python
+  # before
+  for part in anatomy["external_parts"]:
+      use(part["id"], part)
+
+  # after
+  for pid, part in anatomy["parts"].items():
+      use(pid, part)
+  ```
+
+- **Versions.** Compare `spec_version` as integers. `"1.10" < "1.9"` is true for
+  strings.
+- **`diagnose`.** Code that migrates on `outdated` now leaves a conforming 1.9
+  bundle alone. Test for `behind` too if it should upgrade.
+- **Older writers.** An app written to 1.9 may stamp a newer bundle back to 1.9
+  without warning. `saved_below_floor` shows it when the bundle names a floor.
+
+### Fixed
+
+- `read_bundle` accepts a `str` path, as documented.
+- `repack_atomic` refuses a read-only target at once instead of retrying.
 
 ## [1.9.0 / Spec v1.9] - 2026-07-08
 
@@ -157,3 +246,5 @@ library ships at 0.1.0 as the first public implementation of it.
 - The spec is frozen. The library may evolve across 0.x releases
   (error messages, loader ergonomics, performance) without changing
   observable neuronshard dynamics, which are part of the spec contract.
+
+[1.12.0 / Spec v1.12]: https://github.com/mr-gl00m/shardcore/compare/v1.9.0...v1.12.0

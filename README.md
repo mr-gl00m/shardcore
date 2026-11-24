@@ -24,9 +24,9 @@ persistent, living AI entities.
 > **TL;DR for engineers.** `.shard` files are ZIP bundles describing
 > characters with persistent neural state, verified by SHA-256, runnable
 > in pure Python. Only `manifest.json` + `soulshard.json` are required;
-> every other pillar is optional and carries its own schema id. v1.9 spec
-> + a 1.9.0 reference library that reads, verifies, diagnoses, migrates,
-> and repacks bundles. Skip to [Quickstart](#quickstart) to run something now.
+> every other pillar is optional and carries its own schema id. v1.12 spec
+> + a 1.12.0 reference library that reads, verifies, diagnoses, migrates,
+> builds, repacks, compares and merges bundles, and projects them into prompts. Skip to [Quickstart](#quickstart) to run something now.
 
 ---
 
@@ -132,18 +132,19 @@ modest hardware, and bring a mind of its own to problems you hand it.
 
 ## Status
 
-This repository is the **v1.9 release** of the format spec plus a **1.9.0
-reference library**. v1.9 is the capstone of the v1 line and the next
-release after the public v1.0 baseline. Only the soul is required; every
-other pillar is optional and self-describes through a schema id in the
-manifest.
+This repository holds **v1.12** of the format spec plus a **1.12.0
+reference library** (1.11 was ratified but never released as a library). v1.9
+reshaped the v1 line after the public v1.0 baseline; v1.10, v1.11 and v1.12 are
+additive minors on top of it. Only the soul is
+required; every other pillar is optional and self-describes through a schema
+id in the manifest.
 
 | Pillar | File | Schema id | Status |
 |---|---|---|---|
 | Soul | `soulshard.json` | `shardcore/soul@1.9` | **Required.** Identity, personality, closed ten-stat block |
-| Shell | `shellshard.json` | `shardcore/shell@1.9` | Optional. Anatomy, image paths, character state |
+| Shell | `shellshard.json` | `shardcore/shell@1.12` | Optional. Anatomy parts map, image paths, character state |
 | Mind | `mindshard.json` | `shardcore/mind@2.1` | Optional. Tiered memory, optional structured state |
-| Neuron | `neuronshard.json` | `shardcore/neuron@1.0` | Optional. LIF substrate, byte-identical round-trip |
+| Neuron | `neuronshard.json` | `shardcore/neuron@1.1` | Optional. Neural substrate, byte-identical round-trip. `neuron@1.0` stays valid |
 | Canon | `canonshard.json` | `shardcore/canon@1.0` | Optional. Authored immutable events |
 | Stat | `statshard.json` | `shardcore/stat@1.0` | Optional. Game-system stat blocks |
 | World | `worldshard.json` | `shardcore/world@1.0` | Optional. Setting and scene state |
@@ -154,8 +155,37 @@ manifest.
 v1.9 also writes down two things v1.0 left implicit: **conformance profiles
 and model tiers** (which pillars a `companion` / `npc` / `agent` needs, and
 how a bundle projects into small, medium, and large context budgets) and a
-deterministic **projection contract** (bundle to system prompt). See
-[`SHARDCORE_Spec_v1.9.md`](SHARDCORE_Spec_v1.9.md) for the full document.
+deterministic **projection contract** (bundle to system prompt).
+
+v1.10 adds **identity and offspring lineage**: a `shard_id` that names a
+character or creature across every save, and a lineage shape for new
+individuals bred, cloned, or fused from one or more hash-pinned parents.
+
+v1.11 orders and reconciles copies. Every write records the state it
+replaced in a **revision chain**, so two copies of one character compare as
+the same, newer, older, or diverged; diverged copies **merge** three-way
+against the state both descend from, unit by owner namespace. It also fixes
+the shell's anatomy as a **parts map** and ships the projection contract as
+**reference code with golden texts**.
+
+v1.12 adds **`neuron@1.1`**, the default for new neuronshards: edges are synapse
+counts, so activity spreads past the nodes driven directly, with sense nodes,
+pooled inhibition and a record of what the character has learned. A body part
+can be tied to the neural map. `neuron@1.0` is frozen and still loads and runs.
+The spec is self-contained:
+[`SHARDCORE_Spec_v1.12.md`](SHARDCORE_Spec_v1.12.md) is the whole format.
+
+---
+
+## Compatibility
+
+Any 1.x reader opens any 1.x shard. An app can stay on its version for as long as
+it likes. Since 1.12, saving a shard never changes its version (one from before 1.9
+has no form a current writer produces, so it is upgraded); upgrading is always your
+choice and can be undone. Nothing updates itself. A 2.x library reads 1.x shards.
+
+An app older than a shard can save it when the shard allows
+(`manifest.min_writer`), and passes through what it does not know.
 
 ---
 
@@ -172,8 +202,12 @@ python -m shardcore verify examples/standard.shard
 # Report how far a bundle is from the current spec
 python -m shardcore diagnose examples/standard.shard
 
-# Migrate an older bundle forward to v1.9 and repack it (keep a copy first)
+# Migrate an older bundle forward to the current spec and repack it (keep a copy first)
 python -m shardcore migrate path/to/old.shard --out migrated.shard
+
+# How two copies of one character relate, and merge two diverged ones
+python -m shardcore compare a.shard b.shard
+python -m shardcore merge a.shard b.shard --out merged.shard
 
 # Tick the neural substrate for 200 steps and save the resulting state
 python -m shardcore neuron examples/standard.shard --ticks 200 --save state.json
@@ -181,7 +215,7 @@ python -m shardcore neuron examples/standard.shard --ticks 200 --save state.json
 
 `verify` checks that every file the manifest lists matches its declared
 SHA-256 and that the required pillar is present. `diagnose` reports drift
-from the current spec without changing anything. `migrate` runs the v1.9
+from the current spec without changing anything. `migrate` runs the
 migration chain and repacks atomically. `neuron` builds a spiking network
 from the bundle's soul, runs it, and optionally persists the runtime state
 back out as a `neuronshard.json`.
@@ -195,33 +229,49 @@ All commands exit 0 on success, non-zero on any violation.
 ```
 shardcore/         Reference library, stdlib-only I/O + numpy substrate
   bundle.py        Read-only reader: open, hash, extract state in memory
-  registry.py      Per-member schema-id registry (spec PART III)
+  document.py      Strict in-memory reader for runtimes (verified members)
+  builder.py       Fresh-bundle construction with atomic verified output
+  core.py          The one implementation of bundle I/O, single stdlib file
+                   (apps vendor it as shardcore_v19.py): writer, revision
+                   chain, compare and merge, backup vault, anatomy map
+  projection.py    The reference projection (spec 10), single stdlib file
+  lineage.py       shard_id minting, lineage validation, offspring blocks
+  registry.py      Spec version + per-member schema-id registry (PART III)
   mutable.py       In-memory mutable view + the atomic repack (the writer)
-  migrations.py    The v1.9 migration chain (0001 to 0014)
+  migrations.py    The migration chain (0001 to 0017)
   diagnose.py      Drift detection: bundle state to findings + status
   migrate.py       migrate_bundle: load, migrate, repack
   verify.py        Manifest + SHA-256 integrity validator
-  neuron.py        LIF tick engine, topology builder, neuronshard I/O
-  __main__.py      python -m shardcore <verify|diagnose|migrate|neuron>
+  neuron.py        neuron@1.0: LIF tick engine, topology builder, neuronshard I/O
+  brain/           neuron@1.1: engine, wiring, experience, reading talk into senses
+  backup_vault.py  Every written bundle state kept, for reversal
+  __main__.py      python -m shardcore <verify|diagnose|migrate|neuron|backup|compare|merge>
 
 tests/
   unit/            Reference behavior tests (neuron, pytest)
-  conformance/     Spec section 13 suite: 18 golden fixtures + emit.py
+  conformance/     Spec section 13 suite: 29 golden fixtures + emit.py, and the
+                   projection golden texts (projection/, projection_cases.py)
+
+vendor/
+  shardcore.gd     GDScript port of core.py for Godot apps
+  shard_projection.gd  GDScript port of projection.py
+tools/ecosystem/   Consumer check: syncs vendored copies, runs every app's
+                   write paths against the fixtures (docs/ecosystem.md)
 
 examples/          Reference bundles (minimal + standard) and their builder
-docs/              Concept notes for the v1.9 pillars and contracts
+docs/              Concept notes for the pillars and contracts
 research/          Papers grounding the neural + memory decisions
 ```
 
 The bundle I/O surface (`bundle`, `registry`, `mutable`, `migrations`,
 `diagnose`, `migrate`, `verify`) is standard-library only. `numpy` is
-needed only for the `neuron` substrate.
+needed only for the neural substrates (`neuron`, `brain`).
 
 ---
 
 ## Links
 
-- [Full specification](SHARDCORE_Spec_v1.9.md)
+- [Full specification](SHARDCORE_Spec_v1.12.md)
 - [Roadmap](ROADMAP.md)
 - [Concept docs](docs/): projection, conformance, migration, pillars, library
 - [Research grounding](research/): papers cited by the spec
@@ -240,7 +290,7 @@ applications you build on top are yours.**
 SHARDCORE is dual-licensed so the format and the code carry the
 licenses that fit them best:
 
-- **Specification** (`SHARDCORE_Spec_v1.9.md` and any future spec
+- **Specification** (`SHARDCORE_Spec_v1.12.md`, earlier versions, and any future spec
   documents): **Apache-2.0**. The patent grant matters for a format
   that aspires to be reimplemented widely.
 - **Reference library** (`shardcore/` and everything else needed to

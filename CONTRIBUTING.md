@@ -18,6 +18,10 @@ library moves faster, as long as it remains conformant.
   test, make it pass, open a PR.
 - **Spec changes**: open a `spec:` issue first with a short RFC.
   Do not open a spec PR before the RFC has rough consensus.
+- **Anything that changes what a writer writes** (the spec, the library's
+  write path, `shardcore/core.py`) is done when
+  `tools/ecosystem/ecosystem.py check` passes. See
+  [`docs/ecosystem.md`](docs/ecosystem.md).
 
 ---
 
@@ -87,6 +91,11 @@ Process:
    nobody will notice regressing later.
 3. Keep the PR focused. One logical change per PR.
 4. Update `CHANGELOG.md` under the `## [Unreleased]` section.
+5. If the change touches what a writer writes, make it in `shardcore/core.py`
+   (the library and every vendored copy share it), port it to
+   `vendor/shardcore.gd` (`tests/test_vendor_gdscript.py` holds the port), run
+   `tools/ecosystem/ecosystem.py sync`, and get `ecosystem.py check` passing
+   across every consumer in the workspace.
 
 ### Commits and messages
 
@@ -113,12 +122,12 @@ That makes spec changes expensive. Please do not open a spec PR cold.
    - What the current spec says.
    - What you want it to say.
    - The concrete use case that motivates the change.
-   - Any runtime-compatibility impact (does this break v1.0 or v1.9
+   - Any runtime-compatibility impact (does this break v1.0, v1.9, v1.10, or v1.11
      bundles?).
 2. Discussion happens on the issue. Other implementers get a chance to
    weigh in.
 3. If there is rough consensus, the change lands as a PR against
-   `SHARDCORE_Spec_v1.9.md` (for clarifications that do not change
+   `SHARDCORE_Spec_v1.12.md` (for clarifications that do not change
    behavior) or as a new optional pillar (a new row in the pillar
    registry with its own `schema` id) for additive changes, with a
    milestone update in `ROADMAP.md`.
@@ -133,11 +142,16 @@ That makes spec changes expensive. Please do not open a spec PR cold.
 - Changing the manifest integrity algorithm.
 - Changing Neuronshard serialization in a way that breaks
   round-trip of pre-existing bundles.
+- Moving, reshaping, renaming or removing data that an older reader of the
+  same major uses. A new shape goes beside the old one until the next major.
 
 Breaking changes do not land in v1.x. They go on the roadmap for a
 future major version and require explicit backward-compatibility notes.
 Additive changes (a new optional pillar, a new schema id) stay within
 the v1 line.
+
+A shard is stamped with a minor only after that minor's library is released.
+Until then, a new feature lives in a vendor namespace.
 
 ---
 

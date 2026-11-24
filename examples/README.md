@@ -1,6 +1,6 @@
 # Examples
 
-Two reference `.shard` bundles that exercise the v1.9 format surface. Both are
+Two reference `.shard` bundles that exercise the v1.12 format surface. Both are
 built from fictional characters with no personal, proprietary, or
 project-private content, and both are shaped to pass the conformance suite.
 
@@ -11,8 +11,8 @@ python examples/_build_examples.py
 ```
 
 The builder authors each manifest directly, then reads the result back through
-the library and asserts it verifies clean and diagnoses as `current` at spec
-v1.9. If an example drifts from the spec, the build fails.
+the library and asserts it verifies clean and diagnoses as `current` at the
+library's spec version. If an example drifts from the spec, the build fails.
 
 ---
 
@@ -41,7 +41,7 @@ Prints `OK: examples/minimal.shard passes integrity verification`.
 
 ## `standard.shard`: Cassia Meridian
 
-**What it demonstrates:** a full companion bundle that touches most of the v1.9
+**What it demonstrates:** a full companion bundle that touches most of the
 optional pillars, with a pre-warmed neural substrate.
 
 - `soulshard.json`: core soul (ten-stat `stat_block`, `identity`,

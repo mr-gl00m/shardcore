@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shardcore"
-version = "1.9.0"
+version = "1.12.0"
 description = "Reference loader, validator, migrator, and neural-substrate runtime for the .shard bundle format."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,7 +36,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/mr-gl00m/shardcore"
-Specification = "https://github.com/mr-gl00m/shardcore/blob/main/SHARDCORE_Spec_v1.9.md"
+Specification = "https://github.com/mr-gl00m/shardcore/blob/main/SHARDCORE_Spec_v1.12.md"
 Roadmap = "https://github.com/mr-gl00m/shardcore/blob/main/ROADMAP.md"
 Issues = "https://github.com/mr-gl00m/shardcore/issues"
 
@@ -56,7 +56,7 @@ filterwarnings = ["error"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-extend-exclude = ["research", "docs", "examples/*.shard"]
+extend-exclude = ["research", "docs", "examples/*.shard", "tests/compat/frozen"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]

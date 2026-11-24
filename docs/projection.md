@@ -50,3 +50,15 @@ regardless of which model is behind it.
 
 See also [conformance.md](conformance.md) for the model tiers that set the
 budget.
+
+## The reference implementation
+
+`shardcore/projection.py` is the reference (spec 10.4), with golden texts in
+`tests/conformance/projection/` that `vendor/shard_projection.gd` reproduces
+byte for byte. It fixes what the prose leaves open: the section labels, the
+character budgets (24,000 / 64,000 / 160,000 for S / M / L), how many memories
+each tier carries (8 core at S, 12 of each active tier at M, all at L), and
+how shard text is sanitized before it is placed (whitespace collapsed so shard
+text cannot open a line, code fences and `[SHARDCORE` labels neutralized). A
+runtime wraps the projected text in its own preamble; the wrapper is not part
+of the contract.

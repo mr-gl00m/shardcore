@@ -3,7 +3,109 @@
 This document describes concrete milestones with acceptance criteria,
 not aspirations. Dates are intent, not contract.
 
-Spec references below point at [`SHARDCORE_Spec_v1.9.md`](SHARDCORE_Spec_v1.9.md).
+Spec references below point at [`SHARDCORE_Spec_v1.12.md`](SHARDCORE_Spec_v1.12.md).
+
+---
+
+## v1.13: Epistemic memory (spec text not started)
+
+**Goal:** a memory says where it came from, a belief is data with evidence, and
+active memory degrades entry by entry when the budget runs out.
+
+- [x] The design questions decided (2026-11-23).
+- [ ] Spec v1.13 text: mind@2.2 (`epistemic_status`, `provenance`, `mind.beliefs`),
+      the projection's beliefs section, and a projection contract version.
+- [ ] Projection contract 2 is opt-in; contract 1 stays the default.
+- [ ] Reference library, golden texts and `vendor/shard_projection.gd` at v1.13.
+- [ ] QUICKENING moves `quickening/beliefs@1.0` into `mind.beliefs`.
+- [ ] Ecosystem check passes.
+- [ ] Library 1.13.0 released, and only then stamped into any shard. Upgrading the
+      live library is optional.
+
+---
+
+## v1.12: neuron@1.1, body stimulus, and writers that keep versions (spec ratified 2026-11-23, amended 2026-11-24)
+
+**Goal:** a neural substrate that propagates and learns, tied to the body; and no
+update that moves anyone who did not take it. Library 1.12.0 carries everything
+from v1.10 and v1.11, which were ratified but never released as libraries.
+
+- [x] Spec v1.12 ratified (`SHARDCORE_Spec_v1.12.md`, decisions in its record).
+- [x] Reference library at 1.12: `shell@1.12`, `neuron@1.1` default, `shardcore/brain/`.
+- [x] A save keeps the shard's version, a new shard takes the lowest that covers its
+      content, `min_writer` is honored, an upgrade keeps the earlier file.
+- [x] Checked against a frozen copy of every helper that shipped in an app, and of
+      both public libraries.
+- [x] `diagnose` says `behind`, where it said `outdated`, for a conforming bundle.
+- [x] README carries the compatibility promise.
+- [x] Library 1.12.0 released.
+- [ ] Library 1.12.0 on PyPI.
+
+---
+
+## v1.11: Revision chain, merge, reference projection (spec ratified, never released as a library)
+
+**Goal:** order and reconcile copies of one identity, so a character can be
+taken through several apps and come back without one app's edits silently
+replacing another's; and make "the same shard reads the same way in every
+runtime" true in code.
+
+Landed:
+
+- **One Python implementation.** The vendored helper is `shardcore/core.py`,
+  and the library imports it instead of keeping its own copies.
+- **`manifest.revision`** (spec 11.5): `n`, `prior`, a 16-deep `history`,
+  `merged`; `compare_revisions` and `common_ancestor`.
+- **Merge** (spec 11.5.3): `merge_members`, `merge_bundles`, `write_merge`,
+  base states from the backup vault; `python -m shardcore compare` / `merge`.
+- **Anatomy parts map** (spec 6.3, `shell@1.10`) and migration `0017`;
+  revision stamping as migration `0016`; `stale_schema_ids` drift.
+- **Reference projection** `shardcore/projection.py` with golden texts, and
+  its GDScript port `vendor/shard_projection.gd`. QUICKENING runs on it.
+- **Self-contained spec**: v1.0 and addendum material folded in.
+
+Acceptance:
+
+- [x] Conformance suite covers a revised bundle, a malformed revision, a v1.10
+      bundle, and a list-shape shell (27 fixtures), plus 7 projection goldens.
+- [x] Python and GDScript agree on revision stamping, comparison, and every
+      projection golden text (`tests/test_vendor_gdscript.py`,
+      `tests/test_vendor_projection_gdscript.py`).
+- [x] `tools/ecosystem/ecosystem.py check` passes across all eleven consumers,
+      with the contract checking revision descent on every write path.
+- [x] Example bundles rebuild and diagnose `current` at v1.11.
+- [ ] AI Rift and Djinn Redux build their character prompt from the reference
+      projection.
+- [ ] Cross-platform CI matrix green on the 1.11 tree.
+
+---
+
+## v1.10: Identity and offspring lineage (spec ratified, library unreleased)
+
+**Goal:** give bred, cloned, and fused characters a hash-pinned record of their
+parents, and give every bundle an identity that survives edits so a pedigree
+can be resolved.
+
+Landed:
+
+- **`manifest.shard_id`** (spec 11.4.1): minted once, preserved on every save.
+- **`relationship: "offspring"`** with a `parents` array of role-tagged,
+  hash-pinned entries (spec 11.4.2). Parents only; no inherited canon.
+- **Numeric version comparison** made normative (spec section 3).
+- **Library:** `shardcore.lineage`, a builder that mints ids and validates
+  lineage, migration `0015`, and five new conformance fixtures.
+
+Acceptance:
+
+- [x] `tests/conformance/cases.py` covers both lineage shapes, tolerated
+      malformed lineage, a v1.9 bundle, and a broken `shard_id` (23 fixtures).
+- [x] A v1.9 bundle migrates to v1.10 with a deterministic `shard_id`; a
+      second migrate is a no-op.
+- [x] Example bundles rebuild and diagnose `current` at v1.10.
+- [x] `tools/ecosystem/ecosystem.py check` passes across every consumer
+      (eight then; eleven by v1.11): vendored copies identical, every write path through the
+      contract fixtures, isolation, and each consumer's own tests.
+- [ ] Cross-platform CI matrix green on the 1.10 tree.
 
 ---
 
@@ -59,7 +161,10 @@ promotes them.
 A drive is a named scalar with a half-life; chemicals decay; goals tier
 like memory. Reference implementation slots next to `shardcore/neuron.py`.
 
-- [ ] Schema frozen: `drives[name].value`, `.half_life_s`, `.last_kick`.
+- [ ] Schema frozen from the one working writer (QUICKENING,
+      `quickening/drives.py`): `drives[name] = {value, growth_per_hour,
+      critical}`, `chemicals[name] = {value, half_life_hours}`, `goals`,
+      `tick = {last_tick_utc, tick_count}`, `regulators` (spec PART II).
 - [ ] `tick_drives(driveshard, dt)` decays every drive correctly, verified
       against a closed-form decay.
 - [ ] Goals inherit and expire with mindshard tiers; core-goal removal is
@@ -119,7 +224,7 @@ v2 is speculative. Items here are design directions, not commitments.
 A discovery layer so bundles can be published, mirrored, and verified by
 signature: detached signatures over `manifest.json`, a minimal registry
 protocol, and a reference `shardcore publish` / `shardcore pull` CLI. The
-v1.9 `lineage` and `attestation` manifest fields are the on-ramp.
+`shard_id`, `lineage`, and `attestation` manifest fields are the on-ramp.
 
 ### 2.2 Cross-shard connectome
 

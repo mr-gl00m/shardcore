@@ -6,7 +6,7 @@ Run this script from the repo root:
 
 It writes `minimal.shard` and `standard.shard` next to itself, then reads each
 one back through the library and asserts it verifies clean and diagnoses as
-`current` at spec v1.9. Both bundles are built from fictional characters and
+`current` at the library's spec version. Both bundles are built from fictional characters and
 contain no personal, proprietary, or private content. They are shaped to pass
 the conformance suite in `tests/conformance/`.
 
@@ -39,7 +39,7 @@ from shardcore.neuron import (  # noqa: E402
     build_brain_from_shard,
     neuronshard_from_runtime,
 )
-from shardcore.registry import schema_for_member  # noqa: E402
+from shardcore.registry import SPEC_VERSION, schema_for_member  # noqa: E402
 from shardcore.verify import verify_bundle  # noqa: E402
 
 STAMP = "2026-07-08T00:00:00Z"
@@ -150,6 +150,15 @@ CASSIA_SHELL = {
         "height_cm": 178,
         "body_type": "lean, long-limbed",
         "handedness": "right",
+        # Spec 6.3: parts keyed by part id, the ids body/ names.
+        "parts": {
+            "hand_r": {
+                "id": "hand_r",
+                "name": "Right Hand",
+                "part_type": "limb",
+                "tags": ["external", "dominant"],
+            },
+        },
     },
     "identity_image_path": "assets/images/cassia_portrait.png",
     "appearance_image_path": "assets/images/cassia_portrait.png",
@@ -260,6 +269,7 @@ def write_bundle(
     path: Path,
     *,
     shard_name: str,
+    shard_id: str,
     json_pillars: dict[str, dict],
     binary_members: dict[str, bytes] | None = None,
     conformance: dict[str, str] | None = None,
@@ -285,7 +295,7 @@ def write_bundle(
     files: dict[str, dict] = {}
     for name, data in encoded.items():
         entry: dict[str, object] = {}
-        schema = schema_for_member(name)
+        schema = schema_for_member(name, data)  # a neuronshard's id follows its document
         if schema is not None:
             entry["schema"] = schema
         entry["sha256"] = _sha256(data)
@@ -293,12 +303,14 @@ def write_bundle(
         files[name] = entry
 
     manifest: dict[str, object] = {
-        "spec_version": "1.9",
-        "bundle_version": "1.9",  # deprecated alias, spec section 2.2
+        "spec_version": SPEC_VERSION,
+        "bundle_version": SPEC_VERSION,  # deprecated alias, spec section 2.2
         "created": STAMP,
         "last_modified_utc": STAMP,
         "shard_name": shard_name,
+        "shard_id": shard_id,  # fixed per example so rebuilds are byte-stable
         "immutable": False,
+        "revision": {"n": 1},  # a new identity starts its chain (spec 11.5)
         "card": card,
         "files": files,
     }
@@ -324,6 +336,7 @@ def build_minimal(out: Path) -> None:
     write_bundle(
         out,
         shard_name="Thorne Vale",
+        shard_id="c3a5b0e2-7d41-4f6a-9b28-1e4f6d8a2c90",
         json_pillars={"soulshard.json": THORNE_VALE_SOUL},
     )
 
@@ -342,6 +355,7 @@ def build_standard(out: Path) -> None:
     write_bundle(
         out,
         shard_name="Cassia Meridian",
+        shard_id="5e8d2f14-a6b3-4c97-8e21-0b7f3c9d4a65",
         json_pillars={
             "soulshard.json": soul,
             "shellshard.json": CASSIA_SHELL,
@@ -360,10 +374,10 @@ def _self_check(path: Path) -> None:
     errors = verify_bundle(path)
     if errors:
         raise SystemExit(f"{path.name} failed integrity verification: {errors}")
-    diag = diagnose(read_bundle(path), "1.9")
+    diag = diagnose(read_bundle(path), SPEC_VERSION)
     if diag.status != "current":
         drift = [f"{f.code}: {f.detail}" for f in diag.findings if f.severity != "info"]
-        raise SystemExit(f"{path.name} is not current at v1.9 ({diag.status}): {drift}")
+        raise SystemExit(f"{path.name} is not current at v{SPEC_VERSION} ({diag.status}): {drift}")
 
 
 def main() -> int:
@@ -373,7 +387,9 @@ def main() -> int:
     build_standard(standard)
     for path in (minimal, standard):
         _self_check(path)
-        print(f"wrote {path.name}  ({path.stat().st_size} bytes)  [verified current @ v1.9]")
+        print(
+            f"wrote {path.name}  ({path.stat().st_size} bytes)  [verified current @ v{SPEC_VERSION}]"
+        )
     return 0
 
 

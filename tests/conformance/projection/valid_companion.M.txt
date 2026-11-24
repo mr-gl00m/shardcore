@@ -1,0 +1,9 @@
+[SHARDCORE IDENTITY]
+Name: Companion
+Companion is a conformance fixture.
+
+[SHARDCORE PERSONALITY]
+Personality: Deterministic.
+
+----
+{"below_minimum_tier": false, "over_budget": false, "trimmed": []}

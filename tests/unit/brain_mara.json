@@ -1,0 +1,48 @@
+{
+  "soul": {
+    "name": "Mara",
+    "identity": "A smuggler pilot who keeps her debts and her grudges in the same ledger.",
+    "stat_block": {"STR": 5, "END": 6, "VIG": 5, "DEX": 7, "TMP": 6, "ACU": 6, "INS": 6, "ATT": 6, "CNV": 7, "PRS": 5}
+  },
+  "mind": {
+    "format_version": "2.1",
+    "short_term": {"max_slots": 8, "slots": []},
+    "long_term": {"max_slots": 8, "slots": []},
+    "core": [
+      {
+        "entry_title": "Dax pulled me out of the fire",
+        "the_moment": "The hold was burning and Dax came back for me when the rest ran. He saved my life and carried me to the lifeboat.",
+        "the_shift": "I learned what a friend is worth.",
+        "the_truth": "I owe Dax a debt and I trust him with my back.",
+        "tags": ["dax", "loyal", "rescue"],
+        "weight": 1.0
+      },
+      {
+        "entry_title": "Dax sold the route",
+        "the_moment": "Dax sold our route to the Combine. He lied to my face for a month and three of the crew died in the ambush.",
+        "the_shift": "I stopped sleeping with the door unlocked.",
+        "the_truth": "Dax betrayed us and I hate that I still miss him.",
+        "tags": ["dax", "betrayal", "combine"],
+        "weight": 1.0
+      }
+    ],
+    "archive": [
+      {
+        "entry_title": "The Combine hunts in pairs",
+        "the_moment": "Two Combine cutters ran us down off Kessin. A trap, and we walked into it.",
+        "the_shift": "I check every door twice.",
+        "the_truth": "When the Combine is near, the danger is already behind you.",
+        "tags": ["combine", "threat"],
+        "weight": 0.7
+      },
+      {
+        "entry_title": "Ilse's laugh in the galley",
+        "the_moment": "Ilse burned the stew and laughed until she cried. The whole crew was happy for one night.",
+        "the_shift": "I remembered the ship could be warm.",
+        "the_truth": "Joy is small and it is worth protecting.",
+        "tags": ["ilse", "crew", "warm"],
+        "weight": 0.6
+      }
+    ]
+  }
+}
